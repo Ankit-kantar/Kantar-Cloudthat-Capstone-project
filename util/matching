@@ -1,0 +1,74 @@
+import pandas as pd
+import re
+from typing import Optional
+
+
+def extract_zip_from_text(text: str) -> Optional[str]:
+    """
+    Attempt to extract a 5-digit ZIP code from free text.
+    Used as a fallback when structured ZIP is missing.
+    """
+    if not isinstance(text, str):
+        return None
+
+    match = re.search(r"\b\d{5}\b", text)
+    if match:
+        return match.group()
+    return None
+
+
+def validate_zip_codes(
+    listings: pd.DataFrame,
+    zip_column: str = "zip_code"
+) -> pd.DataFrame:
+    """
+    Validate and standardize ZIP codes in listings data.
+    """
+    df = listings.copy()
+
+    # Ensure ZIP is string
+    df[zip_column] = df[zip_column].astype(str)
+
+    # Keep only valid 5-digit ZIPs
+    df[zip_column] = df[zip_column].str.extract(r"(\d{5})")
+
+    return df
+
+
+def check_zip_coverage(
+    listings: pd.DataFrame,
+    demographics: pd.DataFrame
+) -> dict:
+    """
+    Check overlap between listings and demographics ZIP codes.
+    Returns basic matching diagnostics.
+    """
+    listing_zips = set(listings["zip_code"].dropna().unique())
+    demographic_zips = set(demographics["zip_code"].dropna().unique())
+
+    return {
+        "listings_unique_zips": len(listing_zips),
+        "demographics_unique_zips": len(demographic_zips),
+        "common_zips": len(listing_zips.intersection(demographic_zips)),
+        "coverage_pct": round(
+            len(listing_zips.intersection(demographic_zips))
+            / max(len(listing_zips), 1) * 100,
+            2
+        )
+    }
+
+
+def safe_merge_on_zip(
+    listings: pd.DataFrame,
+    demographics: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Safely merge listings and demographics on ZIP code.
+    """
+    merged_df = listings.merge(
+        demographics,
+        on="zip_code",
+        how="left",
+        validate="many_to_one"
+    )
+    return merged_df
